@@ -24,43 +24,53 @@ export async function registerAction(
   password: string,
   name: string
 ): Promise<{ error?: string }> {
+  const existingUser = await prisma.user.findUnique({
+    where: { email },
+  });
+
+  if (existingUser) {
+    return { error: "An account with this email already exists." };
+  }
+
   const { hashPassword } = await import("./auth");
   const hashedPassword = await hashPassword(password);
+  const verificationToken = crypto.randomUUID();
+
   try {
-    const user = await prisma.user.create({
-      data: {
-        id: crypto.randomUUID(),
-        email,
-        password: hashedPassword,
-        name,
-      },
+    await prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          id: crypto.randomUUID(),
+          email,
+          password: hashedPassword,
+          name,
+        },
+      });
+
+      await tx.emailVerificationToken.create({
+        data: {
+          id: verificationToken,
+          userId: user.id,
+          expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour from now
+        },
+      });
     });
 
-    const verificationToken = crypto.randomUUID();
-
-    await prisma.emailVerificationToken.create({
-      data: {
-        id: verificationToken,
-        userId: user.id,
-        expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hour from now
-      },
-    });
-
-    console.log("Sending email to:", email);
-
-    const verificationLink = `${process.env.BASE_URL}/verify-email?token=${verificationToken}`;
-
+    // Email sending is outside the transaction. If this fails, the user is still created.
+    // This is a trade-off. A more robust system would use a background job queue.
+    const verificationLink = `${process.env.BASE_URL}/auth/verify-email?token=${verificationToken}`;
     const msg = {
       to: email,
-      from: "noreply@fitflow.com", // Change to your verified sender
+      from: `${process.env.SENDGRID_FROM_EMAIL}`, // Change to your verified sender
       subject: "Verify your email",
       html: `<p>Click the link to verify your email: <a href="${verificationLink}">${verificationLink}</a></p>`,
     };
 
     await sgMail.send(msg);
     console.log("Email sent successfully");
-  } catch {
-    return { error: "An account with this email already exists." };
+  } catch (error) {
+    console.error(error);
+    return { error: "An unexpected error occurred. Please try again." };
   }
   return {};
 }
@@ -127,7 +137,7 @@ export async function forgotPasswordAction(
 
     const msg = {
       to: email,
-      from: "noreply@fitflow.com",
+     from: `${process.env.SENDGRID_FROM_EMAIL}`,
       subject: "Your Password Reset Code",
       html: `<p>Your password reset code is: <strong>${otp}</strong>. It will expire in 15 minutes.</p>`,
     };
