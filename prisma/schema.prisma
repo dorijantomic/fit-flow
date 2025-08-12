@@ -1,0 +1,152 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// User Management Module
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  password      String
+  name          String
+  emailVerified Boolean   @default(false)
+  sessions      Session[]
+
+  // User Onboarding Data
+  experienceLevel   String? // e.g., 'beginner', 'intermediate', 'advanced'
+  goals             String[] // e.g., 'strength', 'hypertrophy', 'endurance'
+
+  // Relationships to other modules
+  workoutTemplates    WorkoutTemplate[]
+  workouts            Workout[]
+  bodyMeasurements    BodyMeasurement[]
+  userPerformance     UserPerformanceSummary?
+}
+
+model Session {
+  id        String   @id
+  userId    String
+  expiresAt DateTime
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model EmailVerificationToken {
+  id        String   @id
+  userId    String
+  expiresAt DateTime
+}
+
+model PasswordResetToken {
+  id        String   @id
+  userId    String
+  otp       String
+  expiresAt DateTime
+}
+
+// Exercise Database Module
+model Exercise {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?
+  videoUrl    String?
+  
+  // Exercise Classification
+  movementPattern String? // e.g., 'squat', 'hinge', 'push', 'pull'
+  muscleGroup     String? // e.g., 'quads', 'hamstrings', 'chest', 'back'
+  equipment       String? // e.g., 'barbell', 'dumbbell', 'bodyweight'
+  difficulty      String? // e.g., 'beginner', 'intermediate', 'advanced'
+
+  templateExercises TemplateExercise[]
+  workoutSets       WorkoutSet[]
+}
+
+// Workout Management Module
+model WorkoutTemplate {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  templateExercises TemplateExercise[]
+  workouts          Workout[]
+}
+
+model TemplateExercise {
+  id                Int      @id @default(autoincrement())
+  workoutTemplateId Int
+  workoutTemplate   WorkoutTemplate @relation(fields: [workoutTemplateId], references: [id], onDelete: Cascade)
+  exerciseId        Int
+  exercise          Exercise @relation(fields: [exerciseId], references: [id])
+  
+  // Instructions for this exercise within the template
+  sets      Int?
+  reps      String? // e.g., "8-12"
+  rest      Int?    // in seconds
+  
+  @@unique([workoutTemplateId, exerciseId])
+}
+
+model Workout {
+  id                Int      @id @default(autoincrement())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workoutTemplateId Int?
+  workoutTemplate   WorkoutTemplate? @relation(fields: [workoutTemplateId], references: [id])
+  
+  startedAt         DateTime @default(now())
+  endedAt           DateTime?
+  notes             String?
+  
+  workoutSets       WorkoutSet[]
+}
+
+model WorkoutSet {
+  id          Int      @id @default(autoincrement())
+  workoutId   Int
+  workout     Workout  @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  exerciseId  Int
+  exercise    Exercise @relation(fields: [exerciseId], references: [id])
+  
+  // Performance Metrics
+  reps        Int
+  weight      Float
+  weightUnit  String   @default("kg") // 'kg' or 'lbs'
+  rpe         Float?   // Rate of Perceived Exertion (1-10)
+  notes       String?
+  
+  createdAt   DateTime @default(now())
+}
+
+// Body Measurement Tracking Module
+model BodyMeasurement {
+  id          Int      @id @default(autoincrement())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  date        DateTime @db.Date
+  weight      Float?
+  weightUnit  String   @default("kg")
+  bodyFat     Float?   // in percentage
+  
+  @@unique([userId, date])
+}
+
+// Scientific Algorithms (Analytics Engine) Module
+model UserPerformanceSummary {
+  id          Int      @id @default(autoincrement())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Calculated Metrics
+  estimated1RMJson  Json?    // Store 1RM for different exercises, e.g., {"squat": 100, "bench": 80}
+  totalVolumeJson   Json?    // Store total volume for different time periods
+  recoveryScore     Float?
+  
+  lastCalculatedAt  DateTime @updatedAt
+}
