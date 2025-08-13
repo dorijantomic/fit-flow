@@ -4,7 +4,6 @@ import prisma from "@/lib/prisma";
 import { revalidatePath } from 'next/cache';
 import { getSession } from "@/lib/session";
 
-// The DAO class is now an internal implementation detail, not exported.
 class WorkoutDAO {
   private userId: string;
 
