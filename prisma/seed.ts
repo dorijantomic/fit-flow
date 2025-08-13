@@ -24,19 +24,19 @@ async function main() {
   const benchPress = await prisma.exercise.upsert({
     where: { name: 'Bench Press' },
     update: {},
-    create: { name: 'Bench Press', movementPattern: 'push' },
+    create: { name: 'Bench Press', movementPattern: ['push'] },
   });
 
   const squat = await prisma.exercise.upsert({
     where: { name: 'Squat' },
     update: {},
-    create: { name: 'Squat', movementPattern: 'squat' },
+    create: { name: 'Squat', movementPattern: ['squat'] },
   });
 
   const deadlift = await prisma.exercise.upsert({
     where: { name: 'Deadlift' },
     update: {},
-    create: { name: 'Deadlift', movementPattern: 'hinge' },
+    create: { name: 'Deadlift', movementPattern: ['hinge'] },
   });
   console.log('Created exercises: Bench Press, Squat, Deadlift');
 

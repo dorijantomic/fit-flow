@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { WorkoutManagementCore } from '@/lib/api/core/workout-management/WorkoutManagementCore';
 import { WorkoutRepository } from '@/lib/repositories/WorkoutRepository';
 import { publicProcedure, router } from '../trpc';
+import { NotFoundError } from '@/lib/errors';
 
 const workoutManagementCore = new WorkoutManagementCore(new WorkoutRepository());
 
@@ -9,7 +10,11 @@ export const workoutRouter = router({
   getWorkoutById: publicProcedure
     .input(z.number())
     .query(async ({ input }) => {
-      return workoutManagementCore.getWorkoutById(input);
+      const workout = await workoutManagementCore.getWorkoutById(input);
+      if (!workout) {
+        throw new NotFoundError(`Workout with ID ${input} not found.`);
+      }
+      return workout;
     }),
 
   createWorkout: publicProcedure

@@ -22,10 +22,19 @@ model User {
   goals             String[] // e.g., 'strength', 'hypertrophy', 'endurance'
 
   // Relationships to other modules
+  preferences         UserPreferences?
   workoutTemplates    WorkoutTemplate[]
   workouts            Workout[]
   bodyMeasurements    BodyMeasurement[]
   userPerformance     UserPerformanceSummary?
+}
+
+model UserPreferences {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  defaultWeightUnit String @default("kg") // 'kg' or 'lbs'
 }
 
 model Session {
@@ -69,6 +78,9 @@ model Exercise {
 
   templateExercises TemplateExercise[]
   workoutSets       WorkoutSet[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // Workout Management Module
@@ -79,9 +91,15 @@ model WorkoutTemplate {
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   estimatedDuration Int?
+  isPublic    Boolean  @default(false)
+  rating      Float?
+  authorNotes String?
   
   templateExercises TemplateExercise[]
   workouts          Workout[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model TemplateExercise {
@@ -117,6 +135,8 @@ model Workout {
   notes             String?
   
   workoutSets       WorkoutSet[]
+
+  @@index([userId])
 }
 
 model WorkoutSet {
@@ -134,6 +154,9 @@ model WorkoutSet {
   notes       String?
   
   createdAt   DateTime @default(now())
+
+  @@index([workoutId])
+  @@index([exerciseId])
 }
 
 // Body Measurement Tracking Module
@@ -148,6 +171,7 @@ model BodyMeasurement {
   bodyFat     Float?   // in percentage
   
   @@unique([userId, date])
+  @@index([userId])
 }
 
 // Scientific Algorithms (Analytics Engine) Module
