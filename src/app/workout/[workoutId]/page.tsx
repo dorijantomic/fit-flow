@@ -15,7 +15,7 @@ function transformWorkoutData(dbWorkout: any) {
       name: te.exercise.name,
       sets: te.sets ?? 0,
       reps: te.reps ?? '0',
-      weight: 0, // Placeholder, real weight is logged per set
+      weight: 0,
       completed: loggedSetsForExercise.length,
     };
   });
@@ -43,7 +43,7 @@ export default async function WorkoutPage({ params: { workoutId } }: WorkoutPage
   const workout = transformWorkoutData(dbWorkout);
 
   if (!workout) {
-    // This could happen if the data is malformed
+   
     notFound();
   }
 
