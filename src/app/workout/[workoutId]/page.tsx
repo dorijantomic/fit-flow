@@ -33,7 +33,8 @@ interface WorkoutPageProps {
   };
 }
 
-export default async function WorkoutPage({ params: { workoutId } }: WorkoutPageProps) {
+export default async function WorkoutPage({ params }: WorkoutPageProps) {
+  const { workoutId } = await params;
   const dbWorkout = await findWorkoutByIdAction(parseInt(workoutId, 10));
 
   if (!dbWorkout) {
