@@ -1,36 +1,20 @@
-export async function getWorkouts(userId: string) {
-  return await prisma.workout.findMany({
-    where: { userId },
-    include: {
-      workoutTemplate: true,
-      workoutSets: true,
-    },
-    orderBy: { startedAt: "desc" },
-  });
-}
+'use server';
 
-export async function createWorkout(data: { userId: string; workoutTemplateId?: number; notes?: string }) {
-  return await prisma.workout.create({
-    data,
-  });
-}
 import prisma from "@/lib/prisma";
-// import { Prisma } from "@prisma/client";
+import { revalidatePath } from 'next/cache';
+import { getSession } from "@/lib/session";
 
-export class WorkoutDAO {
-  public async findWorkoutById(id: number) {
-    return await prisma.workout.findUnique({
-      where: { id },
-      include: {
-        workoutSets: true,
-      },
-    });
+// The DAO class is now an internal implementation detail, not exported.
+class WorkoutDAO {
+  private userId: string;
+
+  constructor(userId: string) {
+    this.userId = userId;
   }
 
-  public async getTodayWorkout(userId: string) {
-    return await prisma.workout.findFirst({
-      where: { userId, endedAt: null },
-      orderBy: { startedAt: 'desc' },
+  public async findWorkoutById(id: number) {
+    return await prisma.workout.findUnique({
+      where: { id: id, userId: this.userId },
       include: {
         workoutTemplate: {
           include: {
@@ -46,22 +30,20 @@ export class WorkoutDAO {
     });
   }
 
-  public async getRecentWorkouts(userId: string) {
-    return await prisma.workout.findMany({
-      where: { userId, endedAt: { not: null } },
-      orderBy: { startedAt: 'desc' },
-      take: 5,
-      include: {
-        workoutTemplate: true,
+  public async createWorkout(workoutTemplateId: number) {
+    return await prisma.workout.create({
+      data: {
+        userId: this.userId,
+        workoutTemplateId,
       },
     });
   }
 
-  public async getUserProgress(userId: string) {
+  public async getUserProgress() {
     const completedSets = await prisma.workoutSet.findMany({
       where: {
         workout: {
-          userId: userId,
+          userId: this.userId,
         },
       },
       orderBy: {
@@ -100,23 +82,83 @@ export class WorkoutDAO {
     }));
   }
 
-  public async createWorkout(userId: string, workoutTemplateId: number) {
-    return await prisma.workout.create({
+  public async logSet(data: { workoutId: number; exerciseId: number; reps: number; weight: number; rpe: number; }) {
+    const workout = await prisma.workout.findFirst({
+        where: { id: data.workoutId, userId: this.userId }
+    });
+
+    if (!workout) {
+        throw new Error("Workout not found or user does not have permission.");
+    }
+
+    const newSet = await prisma.workoutSet.create({
       data: {
-        userId,
-        workoutTemplateId,
+        workoutId: data.workoutId,
+        exerciseId: data.exerciseId,
+        reps: data.reps,
+        weight: data.weight,
+        rpe: data.rpe,
+        weightUnit: 'lbs',
       },
     });
+    
+    revalidatePath(`/workout/${data.workoutId}`);
+    return newSet;
   }
 
-  public async updateWorkoutSet(id: number, reps: number, weight: number, rpe: number) {
-    return await prisma.workoutSet.update({
-      where: { id },
-      data: {
-        reps,
-        weight,
-        rpe,
-      },
+  public async finishWorkout(workoutId: number) {
+    const workout = await prisma.workout.findFirst({
+        where: { id: workoutId, userId: this.userId }
     });
+
+    if (!workout) {
+        throw new Error("Workout not found or user does not have permission.");
+    }
+
+    const updatedWorkout = await prisma.workout.update({
+      where: { id: workoutId },
+      data: { endedAt: new Date() },
+    });
+
+    revalidatePath(`/`);
+    return updatedWorkout;
   }
+}
+
+// Exported server actions that use the DAO
+
+export async function findWorkoutByIdAction(workoutId: number) {
+    const session = await getSession();
+    if (!session) {
+        return null;
+    }
+    const dao = new WorkoutDAO(session.sub);
+    return await dao.findWorkoutById(workoutId);
+}
+
+export async function createWorkoutAction(workoutTemplateId: number) {
+    const session = await getSession();
+    if (!session) {
+        throw new Error("Unauthorized");
+    }
+    const dao = new WorkoutDAO(session.sub);
+    return await dao.createWorkout(workoutTemplateId);
+}
+
+export async function logSetAction(data: { workoutId: number; exerciseId: number; reps: number; weight: number; rpe: number; }) {
+    const session = await getSession();
+    if (!session) {
+        throw new Error("Unauthorized");
+    }
+    const dao = new WorkoutDAO(session.sub);
+    return await dao.logSet(data);
+}
+
+export async function finishWorkoutAction(workoutId: number) {
+    const session = await getSession();
+    if (!session) {
+        throw new Error("Unauthorized");
+    }
+    const dao = new WorkoutDAO(session.sub);
+    return await dao.finishWorkout(workoutId);
 }
