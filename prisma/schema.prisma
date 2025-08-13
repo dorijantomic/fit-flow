@@ -56,10 +56,16 @@ model Exercise {
   videoUrl    String?
   
   // Exercise Classification
-  movementPattern String? // e.g., 'squat', 'hinge', 'push', 'pull'
+  category        String?
+  movementPattern String[]
   muscleGroup     String? // e.g., 'quads', 'hamstrings', 'chest', 'back'
   equipment       String? // e.g., 'barbell', 'dumbbell', 'bodyweight'
   difficulty      String? // e.g., 'beginner', 'intermediate', 'advanced'
+  primaryMuscles  String[]
+  secondaryMuscles String[]
+  equipmentNeeded String[]
+  difficultyLevel Int?
+  instructions    String?
 
   templateExercises TemplateExercise[]
   workoutSets       WorkoutSet[]
@@ -72,6 +78,7 @@ model WorkoutTemplate {
   description String?
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  estimatedDuration Int?
   
   templateExercises TemplateExercise[]
   workouts          Workout[]
@@ -85,9 +92,15 @@ model TemplateExercise {
   exercise          Exercise @relation(fields: [exerciseId], references: [id])
   
   // Instructions for this exercise within the template
-  sets      Int?
-  reps      String? // e.g., "8-12"
-  rest      Int?    // in seconds
+  orderIndex      Int?
+  sets            Int?
+  reps            String? // e.g., "8-12"
+  rest            Int?    // in seconds
+  targetSets      Int?
+  targetRepsMin   Int?
+  targetRepsMax   Int?
+  targetWeight    Float?
+  restSeconds     Int?
   
   @@unique([workoutTemplateId, exerciseId])
 }

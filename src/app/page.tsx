@@ -1,21 +1,22 @@
+// src/app/page.tsx - Updated to use real data
 import { logoutAction } from "@/lib/auth-actions";
 import Dashboard from "@/components/dashboard/Dashboard";
-import { getDashboardData } from "@/lib/data/dashboard.dao";
+import { getDashboardDataAction } from "@/lib/services/performanceService";
 import { Dumbbell, Settings } from "lucide-react";
 import { redirect } from "next/navigation";
-import { getSession } from "@/lib/session";
 import { createWorkoutAction } from "@/lib/data/workout.dao";
+import prisma from "@/lib/prisma";
+import { getSession } from "@/lib/session";
 
 export default async function Home() {
-  const dashboardData = await getDashboardData();
+  const dashboardData = await getDashboardDataAction();
 
   if (!dashboardData) {
     // This could happen if the session is invalid or user is not found.
-    // The middleware should handle redirection, but as a fallback:
     redirect('/auth/login');
   }
 
-  const { user, todayWorkout, progressData, recentWorkouts } = dashboardData;
+  const { user, todayWorkout, progressData, recentWorkouts, weeklyStats } = dashboardData;
 
   const startWorkout = async () => {
     'use server';
@@ -24,10 +25,23 @@ export default async function Home() {
       redirect(`/workout/${todayWorkout.id}`);
     } else {
       // If there's no workout for today, create a new one from a default template.
-      // For now, we'll still use a hardcoded template ID.
-      const defaultTemplateId = 1;
-      const newWorkout = await createWorkoutAction(defaultTemplateId);
-      redirect(`/workout/${newWorkout.id}`);
+      // First, check if user has any templates
+      const session = await getSession();
+      if (!session) {
+        redirect('/auth/login');
+      }
+      
+      const defaultTemplate = await prisma.workoutTemplate.findFirst({
+        where: { userId: session.sub },
+      });
+
+      if (defaultTemplate) {
+        const newWorkout = await createWorkoutAction(defaultTemplate.id);
+        redirect(`/workout/${newWorkout.id}`);
+      } else {
+        // No templates exist, redirect to template creation
+        redirect('/templates/create');
+      }
     }
   };
 
@@ -62,6 +76,7 @@ export default async function Home() {
           todayWorkout={todayWorkout}
           progressData={progressData}
           recentWorkouts={recentWorkouts}
+          weeklyStats={weeklyStats}
           startWorkout={startWorkout}
         />
       </div>

@@ -8,7 +8,9 @@ import * as z from "zod";
 export default function LoginPage() {
   const handleLogin = async (values: z.infer<typeof loginSchema>) => {
     const result = await loginAction(values.email, values.password);
-    return result;
+    if (result?.error) {
+      return { error: result.error };
+    }
   };
 
   return (
